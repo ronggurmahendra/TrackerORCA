@@ -1,57 +1,31 @@
-//lib dec
+/* MAVLInk_DroneLights
+ *  by Juan Pedro López
+ *  
+ * This program was developed to connect an Arduino board with a Pixhawk via MAVLink 
+ *   with the objective of controlling a group of WS2812B LED lights on board of a quad
+ * 
+ * The current version of the program is working properly.
+ * 
+ * TO DO:
+ *  - Move STREAMS request to RC_CHANNELS to use values in logic
+ *  - Add RC_CHANNLES_RAW messages monitoring: move #30 to RC_CHANNELS_RAW (#35)
+ *      http://mavlink.org/messages/common#RC_CHANNELS_RAW
+ *  - Look for message on low battery:
+ *      To be tested: http://mavlink.org/messages/common#PARAM_REQUEST_READ
+ *      To be checked: http://mavlink.org/messages/common#SYS_STATUS
+ *  - Potential implementation of other alarms, like high intensity
+ *      
+ * You can restrict the maximum package size with this parameter in mavlink_types.h:
 
-#include <math.h>
-#include "library/Arduino-MPU6050-master/MPU6050.h"
-#include <SPI.h>
-#include <WiFiNINA.h>
-#include <WiFiUdp.h>
-#include "library/mavlink/mavlink.h"
-#include <Wire.h>
-#include <MPU6050.h>
-
-MPU6050 mpu;
-
-//const
-#define KpYaw 2
-#define KdYaw 1
-#define KiYaw 0.5
-
-#define KpPitch 2
-#define KdPitch 1
-#define KiPitch 0.5
-
-#define PinServoYaw 0
-#define PinServoPitch 1
-
-#define PinSCL A1
-#define PinSDA A2
+    #ifndef MAVLINK_MAX_PAYLOAD_LEN_
+    // it is possible to override this, but be careful! Defa_
+    #define **MAVLINK_MAX_PAYLOAD_LEN 255 ///< Maximum payload length_
+    #endif_
+ */
 
 
-//funciton decleration
-//void allignment();
-//void callibration();
-//void PitchServoControl();
-//void YawServoControl();
-
-
-// global var
-double  trackerlong; //dari GPS
-double  trackerlat; //dari GPS
-double  planelong; //dari Mavlink
-double  planelat; //dari Mavlink
-
-double  trackerAlt; //dari GPS
-double  planeAlt; // dari Mavlink
-
-double  currPitch; //dari Accelerometer
-double  currYaw; //dari GPS(compass) + gyroscope
-
-double  targetPitch; //
-double  targetYaw; //
-
-//Mavlink
-
-//#define SOFT_SERIAL_DEBUGGING   // Comment this line if no serial debugging is needed
+// In case we need a second serial port for debugging
+#define SOFT_SERIAL_DEBUGGING   // Comment this line if no serial debugging is needed
 #ifdef SOFT_SERIAL_DEBUGGING
   // Library to use serial debugging with a second board
   #include <SoftwareSerial.h>
@@ -59,6 +33,10 @@ double  targetYaw; //
   SoftwareSerial pxSerial(9,10);   // RX, TX
 #endif
 
+#include "FastLED.h"
+
+#include "mavlink.h"
+//#include "common/mavlink_msg_request_data_stream.h"
 
 
 // Mavlink variables
@@ -67,331 +45,192 @@ unsigned long next_interval_MAVLink = 1000;  // next interval to count
 const int num_hbs = 60;                      // # of heartbeats to wait before activating STREAMS from Pixhawk. 60 = one minute.
 int num_hbs_pasados = num_hbs;
 
+// FastLed setup
+// How many leds in your strip?
+#define NUM_LEDS 8
+#define BRIGHTNESS  255  // Put 0 to switch off all leds
 
- 
 
-int status = WL_IDLE_STATUS;
-///////please enter your sensitive data in the Secret tab/arduino_secrets.h
-char ssid[] = "newGK91_lt2";        // your network SSID (name)
-char pass[] = "33445566778899";    // your network password (use for WPA, or use as key for WEP)
-int keyIndex = 0;            // your network key Index number (needed only for WEP)
+// For led chips like Neopixels, which have a data line, ground, and power, you just
+// need to define DATA_PIN.  For led chipsets that are SPI based (four wires - data, clock,
+// ground, and power), like the LPD8806 define both DATA_PIN and CLOCK_PIN
+#define DATA_PIN 2
+//#define MODE_PIN 3
+//#define CLOCK_PIN 13
 
-unsigned int localPort = 2390;      // local port to listen on
+// Define the array of leds
+CRGB leds[NUM_LEDS];
 
-char packetBuffer[256]; //buffer to hold incoming packet
-char  ReplyBuffer[] = "acknowledged";       // a string to send back
+// Status: 0, 2, 4 for lights off, 1, 3 for lights on
+// Pulses: flashing with two 20 ms pulses, 80 ms in between pulses and 1 Hz frequency
+int leds_status = 0;
 
-WiFiUDP Udp;
+// Light modes: 1, normal mode. 0, off. 2, low battery.
+#define NUM_MODOS 3
+int leds_modo = 1;
+
+// Definición de las matrices ON y OFF de los modos
+CRGB led_on[NUM_MODOS][NUM_LEDS] = {
+  // Mode 0
+  {
+  CRGB::White,   // Warning: test values
+  CRGB::Black,
+  CRGB::Black,
+  CRGB::Black,
+  CRGB::Black,
+  CRGB::Black,
+  CRGB::Black,
+  CRGB::Black
+  },
+  // Mode 1
+  {
+  CRGB::White,  // Warning: test values
+  CRGB::White,
+  CRGB::Red,
+  CRGB::Green,
+  CRGB::White,
+  CRGB::White,
+  CRGB::Red,
+  CRGB::Red
+  },
+  // Mode 2
+  {
+  CRGB::Blue,  // Warning: test values
+  CRGB::White,
+  CRGB::Red,
+  CRGB::Green,
+  CRGB::White,
+  CRGB::White,
+  CRGB::Red,
+  CRGB::Red
+  }
+};
+
+CRGB led_off[NUM_MODOS][NUM_LEDS] = {
+  // Mode 0
+  {
+  CRGB::Blue,    // Static
+  CRGB::Black,   // Static
+  CRGB::Black,   // Static
+  CRGB::Black,   // Static
+  CRGB::Black,   // Pulses
+  CRGB::Black,   // Pulses
+  CRGB::Black,   // Pulses
+  CRGB::Black    // Pulses
+  },
+  // Mode 1
+  {
+  CRGB::Black,   // Static
+  CRGB::White,   // Static
+  CRGB::Red,     // Static
+  CRGB::Green,   // Static
+  CRGB::Black,   // Pulses
+  CRGB::Black,   // Pulses
+  CRGB::Black,   // Pulses
+  CRGB::Black    // Pulses
+  },
+  // Mode 2
+  {
+  CRGB::Black,   // Static
+  CRGB::White,   // Static
+  CRGB::Black,   // Static
+  CRGB::Black,   // Static
+  CRGB::Black,   // Pulses
+  CRGB::Black,   // Pulses
+  CRGB::Black,   // Pulses
+  CRGB::Black    // Pulses
+  }
+};
+
+
+// Lights flashing adjustment
+unsigned long previousMillis = 0;     // will store last time LED was updated
+unsigned long next_interval = 0;      // next interval
+const long tiempo_on = 20;
+const long tiempo_off = 80;
+const long tiempo_descanso = 880;
+int test_led_tipo = 4;
 
 
 void setup() {
-  // put your setup code here, to run once:
-  Serial.begin(9600);
-  wifiSetup();
-  mavlinkSetup();
-  allighnment();
-  callibration();
-  SensorSetup();
-  getSensorData();
-}
+  // MAVLink interface start
+  Serial.begin(57600);
 
-void loop() {
-  // put your main code here, to run repeatedly:
-  
-  WifiLoop();
-  getSensorData();
-  PitchServoControl();
-  YawServoControl();
-}
+  // LEDs setup
+  //delay(5000); // sanity delay
+  FastLED.addLeds<WS2811, DATA_PIN, GRB>(leds, NUM_LEDS);
+  FastLED.setBrightness( BRIGHTNESS );
 
-
-void SensorSetup(){
-   Serial.println("Initialize MPU6050");
-
-  while(!mpu.begin(MPU6050_SCALE_2000DPS, MPU6050_RANGE_2G))
-  {
-    Serial.println("Could not find a valid MPU6050 sensor, check wiring!");
-    delay(500);
-  }
-
-  // If you want, you can set accelerometer offsets
-  // mpu.setAccelOffsetX();
-  // mpu.setAccelOffsetY();
-  // mpu.setAccelOffsetZ();
-  
-  // If you want, you can set gyroscope offsets
-  // mpu.setGyroOffsetX(155);
-  // mpu.setGyroOffsetY(15);
-  // mpu.setGyroOffsetZ(15);
-  
-  // Calibrate gyroscope. The calibration must be at rest.
-  // If you don't want calibrate, comment this line.
-  mpu.calibrateGyro();
-
-  // Set threshold sensivty. Default 3.
-  // If you don't want use threshold, comment this line or set 0.
-  // mpu.setThreshold(3);
-  
-  // Check settings
-  checkSettings();
-}
-
-void checkSettings()
-{
-  Serial.println();
-  
-  Serial.print(" * Sleep Mode:            ");
-  Serial.println(mpu.getSleepEnabled() ? "Enabled" : "Disabled");
-  
-  Serial.print(" * Clock Source:          ");
-  switch(mpu.getClockSource())
-  {
-    case MPU6050_CLOCK_KEEP_RESET:     Serial.println("Stops the clock and keeps the timing generator in reset"); break;
-    case MPU6050_CLOCK_EXTERNAL_19MHZ: Serial.println("PLL with external 19.2MHz reference"); break;
-    case MPU6050_CLOCK_EXTERNAL_32KHZ: Serial.println("PLL with external 32.768kHz reference"); break;
-    case MPU6050_CLOCK_PLL_ZGYRO:      Serial.println("PLL with Z axis gyroscope reference"); break;
-    case MPU6050_CLOCK_PLL_YGYRO:      Serial.println("PLL with Y axis gyroscope reference"); break;
-    case MPU6050_CLOCK_PLL_XGYRO:      Serial.println("PLL with X axis gyroscope reference"); break;
-    case MPU6050_CLOCK_INTERNAL_8MHZ:  Serial.println("Internal 8MHz oscillator"); break;
-  }
-  
-  Serial.print(" * Accelerometer:         ");
-  switch(mpu.getRange())
-  {
-    case MPU6050_RANGE_16G:            Serial.println("+/- 16 g"); break;
-    case MPU6050_RANGE_8G:             Serial.println("+/- 8 g"); break;
-    case MPU6050_RANGE_4G:             Serial.println("+/- 4 g"); break;
-    case MPU6050_RANGE_2G:             Serial.println("+/- 2 g"); break;
-  }  
-
-  Serial.print(" * Accelerometer offsets: ");
-  Serial.print(mpu.getAccelOffsetX());
-  Serial.print(" / ");
-  Serial.print(mpu.getAccelOffsetY());
-  Serial.print(" / ");
-  Serial.println(mpu.getAccelOffsetZ());
-  
-  Serial.println();
-}
-
-
-
-void wifiSetup(){
-  
-  while (!Serial) {
-
-    ; // wait for serial port to connect. Needed for native USB port only
-
-  }
-
-  // check for the WiFi module:
-
-  if (WiFi.status() == WL_NO_MODULE) {
-
-    Serial.println("Communication with WiFi module failed!");
-
-    // don't continue
-
-    while (true);
-
-  }
-
-  String fv = WiFi.firmwareVersion();
-
-  if (fv < WIFI_FIRMWARE_LATEST_VERSION) {
-
-    Serial.println("Please upgrade the firmware");
-
-  }
-
-  // attempt to connect to Wifi network:
-
-  while (status != WL_CONNECTED) {
-
-    Serial.print("Attempting to connect to SSID: ");
-
-    Serial.println(ssid);
-
-    // Connect to WPA/WPA2 network. Change this line if using open or WEP network:
-
-    status = WiFi.begin(ssid, pass);
-
-    // wait 10 seconds for connection:
-
-    delay(10000);
-
-  }
-
-  Serial.println("Connected to wifi");
-
-  printWifiStatus();
-
-  Serial.println("\nStarting connection to server...");
-
-  // if you get a connection, report back via serial:
-
-  Udp.begin(localPort);
-
-  #ifdef SOFT_SERIAL_DEBUGGING
+#ifdef SOFT_SERIAL_DEBUGGING
   // [DEB] Soft serial port start
   Serial.begin(57600);
   Serial.println("MAVLink starting.");
   mySerial.begin(57600);
-  #endif
-  }
+#endif
+}
 
-  
-void mavlinkSetup(){
-  
-  
-  }
+void loop() {
+  // Lights management
+  // Light pulses: 2 quick flashes per second. 100 ms each cycle
+  unsigned long currentMillis = millis();
+  int i=0;
 
-void WifiLoop(){
-  
-  // if there's data available, read a packet
+  // Normal mode, lights on.
+  if (currentMillis - previousMillis >= next_interval) {
+    // Keep time last mode changed
+    previousMillis = currentMillis;
 
-  int packetSize = Udp.parsePacket();
+    // Toggle lights depending on status
+    switch (leds_status){
+      case 0:
+        {
+          next_interval=tiempo_on;
+          for(i=0;i<NUM_LEDS;i++){
+            leds[i]=led_on[leds_modo][i];
+          }
+          break;
+        }
+        
+      case 1:
+        {
+          next_interval=tiempo_off;
+          for(i=0;i<NUM_LEDS;i++){
+            leds[i]=led_off[leds_modo][i];
+          }
+          break;
+        }
+        
+      case 2:
+        {
+          next_interval=tiempo_on;
+          for(i=0;i<NUM_LEDS;i++){
+            leds[i]=led_on[leds_modo][i];
+          }
+          break;
+        }
 
-  if (packetSize) {
-
-    Serial.print("Received packet of size ");
-
-    Serial.println(packetSize);
-
-    Serial.print("From ");
-
-    IPAddress remoteIp = Udp.remoteIP();
-
-    Serial.print(remoteIp);
-
-    Serial.print(", port ");
-
-    Serial.println(Udp.remotePort());
-
-    // read the packet into packetBufffer
-
-    int len = Udp.read(packetBuffer, 255);
-
-    if (len > 0) {
-
-      packetBuffer[len] = 0;
-
+      case 3:
+        {
+          next_interval=tiempo_descanso;
+          for(i=0;i<NUM_LEDS;i++){
+            leds[i]=led_off[leds_modo][i];
+          }
+          break;
+        }
+        
     }
-
-    Serial.println("Contents:");
-
-    Serial.println(packetBuffer);
-
-    // send a reply, to the IP address and port that sent us the packet we received
-
-    Serial.println("Trying to parse using Mavlink:");
-
-    GetMav();
-
+    // Show leds
+    FastLED.show();
     
-    
-    Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
-
-    Udp.write(ReplyBuffer);
-
-    Udp.endPacket();
+    // Cycle status from 0 to 3
+    leds_status++;
+    if(leds_status >= 4) leds_status=0;
 
   }
-  }
-void getSensorData(){ //retrive all sensors data
-  //mpu  https://www.electronicwings.com/arduino/mpu6050-interfacing-with-arduino-uno
-  Vector rawAccel = mpu.readRawAccel();
-  Vector normAccel = mpu.readNormalizeAccel();
   
-  Vector rawGyro = mpu.readRawGyro();
-  Vector normGyro = mpu.readNormalizeGyro();
-
-  currPitch =  normGyro.YAxis;
-  currYaw =  normGyro.ZAxis;
-    // Serial.print(" Xraw = ");
-  // Serial.print(rawGyro.XAxis);
-  // Serial.print(" Yraw = ");
-  // Serial.print(rawGyro.YAxis);
-  // Serial.print(" Zraw = ");
-  // Serial.println(rawGyro.ZAxis);
-
-  // Serial.print(" Xnorm = ");
-  // Serial.print(normGyro.XAxis);
-  // Serial.print(" Ynorm = ");
-  // Serial.print(normGyro.YAxis);
-  // Serial.print(" Znorm = ");
-  // Serial.println(normGyro.ZAxis);
-
-//  Serial.print(" Xraw = ");
-//  Serial.print(rawAccel.XAxis);
-//  Serial.print(" Yraw = ");
-//  Serial.print(rawAccel.YAxis);
-//  Serial.print(" Zraw = ");
-//
-//  Serial.println(rawAccel.ZAxis);
-//  Serial.print(" Xnorm = ");
-//  Serial.print(normAccel.XAxis);
-//  Serial.print(" Ynorm = ");
-//  Serial.print(normAccel.YAxis);
-//  Serial.print(" Znorm = ");
-//  Serial.println(normAccel.ZAxis);
-
-}
-void allighnment(){ //move pitch down until Y axis accelerometer nearing g or pitch is nearing zero ( means that the pitch is currently level )
-
-}
-
-void callibration(){ // recalibrate the IMU after the pitch have leveled
-
-}
-
-void PitchServoControl(){ //move the currPitch to targetPitch 
-
-}
-
-void YawServoControl(){ //move the currYaw to targetYaw
-
-}
-
-void calTargetPitch(){
-  targetPitch = atan((planeAlt-trackerAlt)/sqrt((trackerlong-planelong)*(trackerlong-planelong) + (trackerlat-planelat)*(trackerlat-planelat))); 
-  return;
-}
-
-void calTargetYaw(){
-  targetYaw = atan((trackerlong-planelong)/(trackerlat-planelat));
-  return;
-}
 
 
-void printWifiStatus() {
-
-  // print the SSID of the network you're attached to:
-
-  Serial.print("SSID: ");
-
-  Serial.println(WiFi.SSID());
-
-  // print your board's IP address:
-
-  IPAddress ip = WiFi.localIP();
-
-  Serial.print("IP Address: ");
-
-  Serial.println(ip);
-
-  // print the received signal strength:
-
-  long rssi = WiFi.RSSI();
-
-  Serial.print("signal strength (RSSI):");
-
-  Serial.print(rssi);
-
-  Serial.println(" dBm");
-}
-
-void GetMav(){
+        
   // MAVLink
   /* The default UART header for your MCU */ 
   int sysid = 1;                   ///< ID 20 for this airplane. 1 PX, 255 ground station
@@ -447,8 +286,7 @@ void GetMav(){
 
   // Check reception buffer
   comm_receive();
-  
-  }
+}
 
 void Mav_Request_Data()
 {
