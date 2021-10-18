@@ -50,7 +50,7 @@ double  targetYaw; //
 
 
 // Debug and Test options
-//#define _DEBUG_
+#define _DEBUG_
 //#define _TEST_
 
 
