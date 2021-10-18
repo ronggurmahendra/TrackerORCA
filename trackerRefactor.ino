@@ -47,17 +47,18 @@ Task t_ServoHandler(100 * TASK_MILLISECOND, TASK_FOREVER, & t_ServoHandler_callb
 
 void setup(){
   Serial.begin(115200);
-  
-  // INISIALISASI SENSOR  
-  Wire.begin();
-  
-  mpu.boot();
-  YawServoCalibration();
-
-  //INISIALISASI SERVO
+   //INISIALISASI SERVO
   servo_yaw.attach(PinServoYaw);
   servo_pitch.attach(PinServoPitch);
 
+  // INISIALISASI SENSOR  
+  Wire.begin();
+  mpu.boot();
+  
+  //Calibration
+  YawServoCalibration();
+  PitchServoCalibration();
+  TrackerPos();
   Serial.println("Setup DONE ...");
 }
 
@@ -65,34 +66,46 @@ void loop(){
   ts.execute();
 }
 
-void YawServoCalibration(){
+void YawServoCalibration(){ // disini cari value servo_yaw_max dan servo_yaw_min (di 0 derajat dan 360 derajat)
   _PM("SETUP YawServoCalibration");
+  //Matek magnetometer
+
+
+  
+}
+void PitchServoCalibration(){// disini cari value servo_pitch_max dan servo_pitch_min (di 0 derajat dan 360 derajat)
+    _PM("SETUP PitchServoCalibration");
 }
 
-void t_MavlinkHandler_callback(){
+void TrackerPos(){ //disini define trackerlong ama trackerlat
+    _PM("SETUP TrackerPos");
+    //Matek GPS
+
+  
+}
+
+void t_MavlinkHandler_callback(){ // harus define planelat planelong planeAlt disini
   _PM("TASK CALLING t_MavlinkHandler_callback");
 }
   
-void t_SensorHandler_callback(){
+void t_SensorHandler_callback(){ //harus define currPitch dan currYaw disini
   _PM("TASK CALLING t_SensorHandler_callback");
   // MPU6050
   mpu.update();
 
   currPitch = radians(mpu.getPitch()); //dari Accelerometer
-  currYaw = radians(mpu.getYaw());//dari GPS(compass) + gyroscope
-
-
-  //Matek GPS
-
-
+  currYaw = radians(mpu.getYaw());//dari GPS(compass) + gyroscope -> idealnya pake compass tapi belum nemu library
   //Compass
 
   
 }
 
-void t_ServoHandler_callback(){
+void t_ServoHandler_callback(){ // dari global var define target pitch dan target yaw dan hitung error dan write ke servo
   _PM("TASK CALLING t_ServoHandler_callback");
-  targetPitch = atan((planeAlt-trackerAlt)/sqrt((trackerlong-planelong)*(trackerlong-planelong) + (trackerlat-planelat)*(trackerlat-planelat))); 
+  targetPitch = atan((planeAlt-trackerAlt)/sqrt((trackerlong-planelong)*(trackerlong-planelong) + (trackerlat-planelat)*(trackerlat-planelat)));  
   targetYaw = atan((trackerlong-planelong)/(trackerlat-planelat));
+
+  
+
 }
   

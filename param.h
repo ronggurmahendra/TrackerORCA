@@ -25,7 +25,7 @@ double  trackerlat; //dari GPS
 double  planelong; //dari Mavlink
 double  planelat; //dari Mavlink
 
-double  trackerAlt; //dari GPS
+double  trackerAlt = 0; //dari GPS
 double  planeAlt; // dari Mavlink
 
 double  currPitch; //dari Accelerometer
@@ -33,6 +33,11 @@ double  currYaw; //dari GPS(compass) + gyroscope
 
 double  targetPitch; //
 double  targetYaw; //
+
+double servo_yaw_max;
+double servo_yaw_min;
+double servo_pitch_max;
+double servo_pitch_min;
 
 //TASK SCHEDULER PARAM
 // #define _TASK_TIMECRITICAL      // Enable monitoring scheduling overruns
