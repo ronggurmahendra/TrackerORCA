@@ -3,7 +3,8 @@
 #ifndef _PARAM_h
 #define _PARAM_h
 
-
+#include <WiFiNINA.h>
+#include "./library/mavlink/mavlink.h"
 //pinout
 #define PinSCL A1
 #define PinSDA A2
@@ -34,10 +35,34 @@ double  currYaw; //dari GPS(compass) + gyroscope
 double  targetPitch; //
 double  targetYaw; //
 
-double servo_yaw_max;
-double servo_yaw_min;
-double servo_pitch_max;
-double servo_pitch_min;
+double servo_yaw_max = 160;
+double servo_yaw_min = 20;
+double servo_pitch_max = 160;
+double servo_pitch_min = 20;
+
+
+// WiFI
+#define ssid "PeritusWiFi_Gnd"
+#define pass "apiktenan123"
+int status = WL_IDLE_STATUS;
+
+// TCP server
+#define serverAddress "11.11.11.211"
+#define port 14553
+WiFiClient client;
+
+// Mavlink
+mavlink_attitude_t attitude;
+mavlink_global_position_int_t global;
+mavlink_message_t msg;
+int sysid = 1;
+int compid = 255;
+int type = 1;
+uint8_t system_type = 0;
+uint8_t autopilot_type = 12;
+uint8_t system_mode = 0;
+uint32_t custom_mode = 0;
+uint8_t system_state = 3;
 
 //TASK SCHEDULER PARAM
 // #define _TASK_TIMECRITICAL      // Enable monitoring scheduling overruns
