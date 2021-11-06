@@ -8,11 +8,11 @@
 //pinout
 #define PinSCL A1
 #define PinSDA A2
-#define PinServoYaw 0
-#define PinServoPitch 1
+#define PinServoYaw 7
+#define PinServoPitch 6
 
 //const
-#define KpYaw 2
+#define KpYaw 1
 #define KdYaw 1
 #define KiYaw 0.5
 
