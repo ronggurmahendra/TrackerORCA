@@ -66,7 +66,9 @@ void setup(){
  compass.init();
  //compass.setCalibration(0, 1926, 0, 1118, -261, 0);
  //compass.setCalibration(-975, 1113, -1220, 850, -455, 7);
- compass.setCalibration(-1014, 1241, -2131, 961, -1633, 985);
+ //compass.setCalibration(-1014, 1241, -2131, 961, -1633, 985);
+ compass.setCalibration(-1205, 1356, -1393, 1128, -1311, 0);
+
  compass.setSmoothing(10,true);
  mpu.boot();
  
@@ -79,7 +81,7 @@ void setup(){
 }
 
 void loop(){
-//  ts.execute();
+  //ts.execute();
   t_MavlinkHandler_callback();
   t_SensorHandler_callback();
   t_ServoYawHandler_callback();
@@ -135,11 +137,11 @@ void mavlinkSetup(){
 void t_MavlinkHandler_callback(){ // harus define planelat planelong planeAlt disini
   _PM("TASK CALLING t_MavlinkHandler_callback");
   _PM("latitude: ");
-  _PM(global.lat);
+  _PM(planelat);
   _PM("longitude: ");
-  _PM(global.lon);
+  _PM(planelong);
   _PM("altitude: ");
-  _PM(global.alt);
+  _PM(planeAlt);
    uint8_t c = client.read();  
   mavlink_status_t status;
   if(mavlink_parse_char(MAVLINK_COMM_0, c, &msg, &status)) {
@@ -161,19 +163,19 @@ void t_MavlinkHandler_callback(){ // harus define planelat planelong planeAlt di
       case MAVLINK_MSG_ID_GLOBAL_POSITION_INT:
         {
           mavlink_msg_global_position_int_decode(&msg, &global);
-          if(global.lat != 0 and global.lon != 0){
+          //if(global.lat != 0 and global.lon != 0){
             //_PM("latitude: ");
             //_PM(global.lat);
             planelat = global.lat;
             //_PM("longitude: ");
             //_PM(global.lon);
             planelong = global.lon;  
-          }
-          if(global.alt != 0){
+          //}
+          //if(global.alt != 0){
             //_PM("altitude: ");
             //_PM(global.alt);
             planeAlt = global.relative_alt;  
-          }
+          //}
         }
       default:
         break;
