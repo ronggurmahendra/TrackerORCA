@@ -1,4 +1,3 @@
-
 //===== Include Libraries ========================
 //#include "./library/math/math.h"
 #include "param.h"
@@ -108,9 +107,115 @@ void PitchServoCalibration(){// disini cari value servo_pitch_max dan servo_pitc
 void TrackerPos(){ //disini define trackerlong ama trackerlat
    //_PM("SETUP TrackerPos");
    //Matek GPS
-   trackerlong = 1075701330; //shelter lanud
-   trackerlat = -69798350; //shelter lanud
+//   trackerlong = 1075699423; //shelter lanud
+//   trackerlat = -69798433  ; //shelter lanud
+  setupGPS();
+  lat_gps_fix = 0;
+  lon_gps_fix = 0;
+  while(lat_gps_fix == 0 or lon_gps_fix == 0){
+    read_gps();
+    _PM("SEARCHING GPS");
+    _PM(lat_gps_fix);
+    _PM(lon_gps_fix);
+  }
+  _PM("GPS FOUND : ");
+  trackerlong = lon_gps_fix;
+  trackerlat = lat_gps_fix;
+  _PM(trackerlong);
+  _PM(trackerlat);
+  
 }
+
+
+void setupGPS() {
+  gpsSerial.begin(9600);
+
+  // set baud rate to 57600
+  uint8_t setBaudRate[28] = { 0xB5, 0x62, 0x06, 0x00, 0x14, 0x00, 0x01, 0x00, 0x00, 0x00, 0xD0, 0x08, 0x00, 0x00,
+                             0x00, 0xE1, 0x00, 0x00, 0x23, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFA, 0xA9 };
+  gpsSerial.write(setBaudRate, 28);
+  delay(300);
+
+  gpsSerial.begin(57600);
+  // Set message rate to 5Hz
+  uint8_t setMsgRate[14] = { 0xB5, 0x62, 0x06, 0x08, 0x06, 0x00, 0xC8, 0x00, 0x01, 0x00, 0x01, 0x00, 0xDE, 0x6A };
+  gpsSerial.write(setMsgRate, 14);
+  delay(300);
+
+  //  
+}
+
+void read_gps(void) {
+  while (gpsSerial.available() && new_line_found == 0) {                                                   //Stay in this loop as long as there is serial information from the GPS available.
+    char read_serial_byte = gpsSerial.read();                                                              //Load a new serial byte in the read_serial_byte variable.
+    if (read_serial_byte == '$') {                                                                       //If the new byte equals a $ character.
+      for (message_counter = 0; message_counter <= 99; message_counter++) {                             //Clear the old data from the incomming buffer array.
+        incomming_message[message_counter] = '-';                                                        //Write a - at every position.
+      }
+      message_counter = 0;                                                                               //Reset the message_counter variable because we want to start writing at the begin of the array.
+    }
+    else if (message_counter <= 99)message_counter++;                                                   //If the received byte does not equal a $ character, increase the message_counter variable.
+    incomming_message[message_counter] = read_serial_byte;                                               //Write the new received byte to the new position in the incomming_message array.
+    if (read_serial_byte == '*') new_line_found = 1;                                                     //Every NMEA line end with a *. If this character is detected the new_line_found variable is set to 1.
+  }
+
+  //If the software has detected a new NMEA line it will check if it's a valid line that can be used.
+  if (new_line_found == 1) {                                                                             //If a new NMEA line is found.
+    new_line_found = 0;                                                                                  //Reset the new_line_found variable for the next line.
+    if (incomming_message[4] == 'L' && incomming_message[5] == 'L' && incomming_message[7] == ',') {     //When there is no GPS fix or latitude/longitude information available.
+      number_used_sats = 0;
+    }
+    //If the line starts with GA and if there is a GPS fix we can scan the line for the latitude, longitude and number of satellites.
+    if (incomming_message[4] == 'G' && incomming_message[5] == 'A' && (incomming_message[44] == '1' || incomming_message[44] == '2')) {
+      // Latitude (10e7)
+      int32_t lat_gps;
+      int32_t lat_gps_mins;
+      int32_t lon_gps;
+      int32_t lon_gps_mins;
+      lat_gps = ((int32_t)incomming_message[17] - 48) * (int32_t)10e7;
+      lat_gps += ((int32_t)incomming_message[18] - 48) * (int32_t)10e6;
+
+      lat_gps_mins = ((int32_t)incomming_message[19] - 48) * (long)10e7;
+      lat_gps_mins += ((int32_t)incomming_message[20] - 48) * (long)10e6;
+      lat_gps_mins += ((int32_t)incomming_message[22] - 48) * 10e5;
+      lat_gps_mins += ((int32_t)incomming_message[23] - 48) * 10e4;
+      lat_gps_mins += ((int32_t)incomming_message[24] - 48) * 10e3;
+      lat_gps_mins += ((int32_t)incomming_message[25] - 48) * 10e2;
+      lat_gps_mins += ((int32_t)incomming_message[26] - 48) * 10e1;
+      lat_gps_mins /= 60;
+      lat_gps += lat_gps_mins;
+
+      if (incomming_message[28] == 'S') lat_gps *= -1;
+
+      lat_gps_fix = lat_gps;
+
+      // longitude (10e7)
+      lon_gps = ((int32_t)incomming_message[30] - 48) * (int32_t)10e8;
+      lon_gps += ((int32_t)incomming_message[31] - 48) * (int32_t)10e7;
+      lon_gps += ((int32_t)incomming_message[32] - 48) * (int32_t)10e6;
+
+      lon_gps_mins = ((int32_t)incomming_message[33] - 48) * (long)10e7;
+      lon_gps_mins += ((int32_t)incomming_message[34] - 48) * (long)10e6;
+      lon_gps_mins += ((int32_t)incomming_message[36] - 48) * 10e5;
+      lon_gps_mins += ((int32_t)incomming_message[37] - 48) * 10e4;
+      lon_gps_mins += ((int32_t)incomming_message[38] - 48) * 10e3;
+      lon_gps_mins += ((int32_t)incomming_message[39] - 48) * 10e2;
+      lon_gps_mins += ((int32_t)incomming_message[40] - 48) * 10e1;
+      lon_gps_mins /= 60;
+      lon_gps += lon_gps_mins;
+      if (incomming_message[42] == 'W') lon_gps *= -1;
+
+      lon_gps_fix = lon_gps;
+
+      number_used_sats = ((int)incomming_message[46] - 48) * (long)10;                                   //Filter the number of satillites from the GGA line.
+      number_used_sats += (int)incomming_message[47] - 48;                                               //Filter the number of satillites from the GGA line.
+    }
+
+    //If the line starts with SA and if there is a GPS fix we can scan the line for the fix type (none, 2D or 3D).
+    if (incomming_message[4] == 'S' && incomming_message[5] == 'A')fix_type = (int)incomming_message[9] - 48;
+  }
+}
+
 void mavlinkSetup(){
   //Serial.begin(9600);
   while (WiFi.status() != WL_CONNECTED) {
@@ -255,7 +360,7 @@ void t_ServoYawHandler_callback(){ // dari global var define target pitch dan ta
 void t_ServoPitchHandler_callback(){
    //_PM ("TASK CALLING t_ServoPITCHHandler_callback");
    //targetPitch = atan((planeAlt-trackerAlt)/sqrt((trackerlong-planelong)*(trackerlong-planelong) + (trackerlat-planelat)*(trackerlat-planelat))); //masi salah yang jarak trackder ama plane 
-   targetPitch = atan2((planeAlt-trackerAlt),getDistanceFromLatLonInKm (trackerlat,trackerlong,planelat,planelong) * 100000000) * 180 / 3.14159265359;
+   targetPitch = atan2((planeAlt-trackerAlt),getDistanceFromLatLonInKm (trackerlat,trackerlong,planelat,planelong) * 1000000) * 180 / 3.14159265359;
    //targetPitch = 0;
    _PM("targetPitch : ");
    _PM(targetPitch);
@@ -265,7 +370,7 @@ void t_ServoPitchHandler_callback(){
    double servoOutPitch = map(errPitch*KpPitch,180 ,-180,servo_pitch_min, servo_pitch_max ); //idealnya pake PID sementara pake P dulu 
    //_PM("servoOutPitch : ");
    //_PM(servoOutPitch);
-   //servo_pitch.write(servoOutPitch);
+   servo_pitch.write(servoOutPitch);
    
 }
 

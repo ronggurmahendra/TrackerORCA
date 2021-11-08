@@ -40,6 +40,16 @@ double servo_yaw_min = 20;
 double servo_pitch_max = 160;
 double servo_pitch_min = 20;
 
+//GPS
+
+#define gpsSerial Serial1
+uint8_t read_serial_byte, incomming_message[100], number_used_sats, fix_type;
+int32_t lat_gps_fix, lon_gps_fix;
+uint16_t message_counter;
+int16_t gps_add_counter;
+uint8_t new_line_found;
+uint32_t tlast_gps;
+
 
 // WiFI
 #define ssid "PeritusWiFi_Gnd"
