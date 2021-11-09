@@ -9,7 +9,7 @@
 #define PinSCL A1
 #define PinSDA A2
 #define PinServoYaw 7
-#define PinServoPitch 6
+#define PinServoPitch 5
 
 //const
 #define KpYaw 1
@@ -21,24 +21,24 @@
 #define KiPitch 0.5
 
 // global var
-double  trackerlong; //dari GPS
-double  trackerlat; //dari GPS
-double  planelong; //dari Mavlink
-double  planelat; //dari Mavlink
+double   trackerlong; //dari GPS
+double   trackerlat; //dari GPS
+double   planelong; //dari Mavlink
+double   planelat; //dari Mavlink
 
-double  trackerAlt = 0; //dari GPS
-double  planeAlt; // dari Mavlink
+double   trackerAlt = 0; //dari GPS
+double   planeAlt; // dari Mavlink
 
-double  currPitch; //dari Accelerometer
-double  currYaw; //dari GPS(compass) + gyroscope
+double   currPitch; //dari Accelerometer
+double   currYaw; //dari GPS(compass) + gyroscope
 
-double  targetPitch; //
-double  targetYaw; //
+double   targetPitch; //
+double   targetYaw; //
 
-double servo_yaw_max = 160;
-double servo_yaw_min = 20;
-double servo_pitch_max = 160;
-double servo_pitch_min = 20;
+double  servo_yaw_max = 160;
+double  servo_yaw_min = 20;
+double  servo_pitch_max = 160;
+double  servo_pitch_min = 20;
 
 //GPS
 

@@ -112,7 +112,7 @@ void TrackerPos(){ //disini define trackerlong ama trackerlat
   setupGPS();
   lat_gps_fix = 0;
   lon_gps_fix = 0;
-  while(lat_gps_fix == 0 or lon_gps_fix == 0){
+  while(lat_gps_fix == 0 and lon_gps_fix == 0){
     read_gps();
     _PM("SEARCHING GPS");
     _PM(lat_gps_fix);
@@ -335,7 +335,7 @@ void t_SensorHandler_callback(){ //harus define currPitch dan currYaw disini
 void t_ServoYawHandler_callback(){ // dari global var define target pitch dan target yaw dan hitung error dan write ke servo
    //_PM("TASK CALLING t_ServoYawHandler_callback");
 
-   targetYaw = atan2((planelat - trackerlat),(planelong - trackerlong)) * 180 / 3.14159265359;
+   targetYaw = atan2((planelong - trackerlong),(planelat - trackerlat)) * 180 / 3.14159265359;
    //targetYaw = 180;
    _PM("targetYaw : ");
    _PM(targetYaw);
@@ -360,24 +360,31 @@ void t_ServoYawHandler_callback(){ // dari global var define target pitch dan ta
 void t_ServoPitchHandler_callback(){
    //_PM ("TASK CALLING t_ServoPITCHHandler_callback");
    //targetPitch = atan((planeAlt-trackerAlt)/sqrt((trackerlong-planelong)*(trackerlong-planelong) + (trackerlat-planelat)*(trackerlat-planelat))); //masi salah yang jarak trackder ama plane 
-   targetPitch = atan2((planeAlt-trackerAlt),getDistanceFromLatLonInKm (trackerlat,trackerlong,planelat,planelong) * 1000000) * 180 / 3.14159265359;
-   //targetPitch = 0;
+   double dist = sqrt(pow((planelat - trackerlat),2) + pow((planelong - trackerlong),2));
+   
+   double konstant =  11.0489137259;
+  
+   
+   _PM("Dist in mm: ");
+   _PM(dist);
+   
+   targetPitch = atan2((planeAlt-trackerAlt),dist) * 180 / 3.14159265359;
    _PM("targetPitch : ");
    _PM(targetPitch);
    double errPitch = targetPitch - currPitch;
-    //_PM("errPitch : ");
-   //_PM(errPitch);
+    _PM("errPitch : ");
+   _PM(errPitch);
    double servoOutPitch = map(errPitch*KpPitch,180 ,-180,servo_pitch_min, servo_pitch_max ); //idealnya pake PID sementara pake P dulu 
-   //_PM("servoOutPitch : ");
-   //_PM(servoOutPitch);
+   _PM("servoOutPitch : ");
+   _PM(servoOutPitch);
    servo_pitch.write(servoOutPitch);
    
 }
 
 double getDistanceFromLatLonInKm (double lat1,double lon1,double lat2,double lon2) {
   double R = 6371; // Radius of the earth in km
-  double dLat = deg2rad(lat2-lat1);  // deg2rad below
-  double dLon = deg2rad(lon2-lon1); 
+  double dLat = deg2rad(abs(lat2-lat1));  // deg2rad below
+  double dLon = deg2rad(abs(lon2-lon1)); 
   double a = 
     sin(dLat/2) * sin(dLat/2) +
     cos(deg2rad(lat1)) * cos(deg2rad(lat2)) * 
