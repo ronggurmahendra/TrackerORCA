@@ -366,9 +366,9 @@ void t_ServoPitchHandler_callback(){
   
    
    _PM("Dist in mm: ");
-   _PM(dist);
+   _PM(dist*konstant);
    
-   targetPitch = atan2((planeAlt-trackerAlt),dist) * 180 / 3.14159265359;
+   targetPitch = atan2((planeAlt-trackerAlt),dist*konstant) * 180 / 3.14159265359;
    _PM("targetPitch : ");
    _PM(targetPitch);
    double errPitch = targetPitch - currPitch;
