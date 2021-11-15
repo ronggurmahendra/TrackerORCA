@@ -12,7 +12,7 @@
 #define PinServoPitch 5
 
 //const
-#define KpYaw 2
+#define KpYaw 1
 #define KdYaw 1
 #define KiYaw 0.5
 
