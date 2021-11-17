@@ -351,6 +351,7 @@ void t_ServoYawHandler_callback(){ // dari global var define target pitch dan ta
    _PM("errYaw : ");
    _PM(errYaw);
    double servoOutYaw = map(errYaw*KpYaw, 180, -180, servo_yaw_min, servo_yaw_max); //idealnya pake PID sementara pake P dulu 
+   servoOutYaw = max(min(servoOutYaw,servo_yaw_max),servo_yaw_min);
    _PM("servoOutYaw : ");
    _PM(servoOutYaw);
    servo_yaw.write(servoOutYaw);
@@ -375,6 +376,7 @@ void t_ServoPitchHandler_callback(){
     _PM("errPitch : ");
    _PM(errPitch);
    double servoOutPitch = map(errPitch*KpPitch,180 ,-180,servo_pitch_min, servo_pitch_max ); //idealnya pake PID sementara pake P dulu 
+   servoOutPitch = max(min(servoOutPitch,servo_pitch_max),servo_pitch_min);
    _PM("servoOutPitch : ");
    _PM(servoOutPitch);
    servo_pitch.write(servoOutPitch);
