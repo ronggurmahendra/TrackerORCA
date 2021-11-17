@@ -31,10 +31,10 @@ void t_MavlinkHandler_callback();
 void t_SensorHandler_callback();
 void t_ServoYawHandler_callback();
 void t_ServoPitchHandler_callback();
-Task t_MavlinkHandler(100 * TASK_MILLISECOND, TASK_FOREVER, & t_MavlinkHandler_callback, &ts, true);
-Task t_SensorHandler(100 * TASK_MILLISECOND, TASK_FOREVER, & t_SensorHandler_callback, &ts, true);
-Task t_ServoYawHandler(100 * TASK_MILLISECOND, TASK_FOREVER, & t_ServoYawHandler_callback, &ts, true);
-Task t_ServoPitchHandler(100 * TASK_MILLISECOND, TASK_FOREVER, & t_ServoPitchHandler_callback, &ts, true);
+Task t_MavlinkHandler(TASK_IMMEDIATE, TASK_FOREVER, & t_MavlinkHandler_callback, &ts, true);
+Task t_SensorHandler(1000 * TASK_MILLISECOND, TASK_FOREVER, & t_SensorHandler_callback, &ts, true);
+Task t_ServoYawHandler(1000 * TASK_MILLISECOND, TASK_FOREVER, & t_ServoYawHandler_callback, &ts, true);
+//Task t_ServoPitchHandler(1000 * TASK_MILLISECOND, TASK_FOREVER, & t_ServoPitchHandler_callback, &ts, true);
 
 //===== Debugging macros ========================
 #ifdef _DEBUG_
@@ -49,7 +49,8 @@ Task t_ServoPitchHandler(100 * TASK_MILLISECOND, TASK_FOREVER, & t_ServoPitchHan
 #define _PL(a)
 #define _PX(a)
 #endif
-
+void mavlinkSetup();
+void TrackerPos();
 
 void setup(){
  #ifdef _DEBUG_
@@ -66,15 +67,18 @@ void setup(){
  //compass.setCalibration(0, 1926, 0, 1118, -261, 0);
  //compass.setCalibration(-975, 1113, -1220, 850, -455, 7);
  //compass.setCalibration(-1014, 1241, -2131, 961, -1633, 985);
- compass.setCalibration(-1205, 1356, -1393, 1128, -1311, 0);
+ //compass.setCalibration(-698, 1973, -1256, 1137, -2069, 0);
+ //compass.setCalibration(-438, 1726, -1265, 1137, -1248, 0);
+ compass.setCalibration(-802, 2072, -1381, 858, -2162, 1227);
+
+
 
  compass.setSmoothing(10,true);
  mpu.boot();
+ now = millis();
  
  
  //Calibration
- YawServoCalibration();
- PitchServoCalibration();
  TrackerPos();
  Serial.println("Setup DONE ...");
 }
@@ -85,24 +89,13 @@ void loop(){
   //t_SensorHandler_callback();
   //t_ServoYawHandler_callback();
   //t_ServoPitchHandler_callback();
-
+  //if (millis()-now>1000){
+    //Mav_Request_Data();
+    //now=millis();
 
 
 }
 
-void YawServoCalibration(){ // disini cari value servo_yaw_max dan servo_yaw_min (di 0 derajat dan 360 derajat) //bisa diabaikan karena servo continous
- ////_PM("SETUP YawServoCalibration");
- //Matek magnetometer 
- //setelah dapet initial value compass incremen servoyawwrite sampai hasil compass muter 360 deg
- //simpan write pertama dan write terakhir di servo_yaw_max ama servo_yaw_min 
- 
-}
-void PitchServoCalibration(){// disini cari value servo_pitch_max dan servo_pitch_min (di 0 derajat dan 360 derajat) //bisa diabaikan karena servo continous
-   ////_PM("SETUP PitchServoCalibration");
-   // servo_pitch_min = 0; //kalau IMU bagus bisa pake ini
-   // servo_pitch_max = 90; //kalau IMU bagus bisa pake ini
-
-}
 
 void TrackerPos(){ //disini define trackerlong ama trackerlat
    ////_PM("SETUP TrackerPos");
@@ -241,22 +234,28 @@ void mavlinkSetup(){
 }
 void t_MavlinkHandler_callback(){ // harus define planelat planelong planeAlt disini
   //_PM("TASK CALLING t_MavlinkHandler_callback");
-   uint8_t c = client.read();  
+
+  //_PM("altitude (mm): ");
+  //_PM(planeAlt);
+   uint8_t c = client.read();
+  //mavlink_message_t msg;  
   mavlink_status_t status;
   if(mavlink_parse_char(MAVLINK_COMM_0, c, &msg, &status)) {
+    //_PM("Get messege");
     // Handle message
     switch(msg.msgid) {
       case MAVLINK_MSG_ID_HEARTBEAT:
         {
           // Do nothing
+          _PM("Get HB");
         }
         break;
       case MAVLINK_MSG_ID_ATTITUDE:
         {
           mavlink_msg_attitude_decode(&msg, &attitude);
-          ////_PM("roll: ");
-          ////_PM(attitude.roll);
-          
+          //_PM("roll: ");
+          //_PM(attitude.roll);
+          //_PM("Get attitude");
         }
         break;
       case MAVLINK_MSG_ID_GLOBAL_POSITION_INT:
@@ -266,23 +265,31 @@ void t_MavlinkHandler_callback(){ // harus define planelat planelong planeAlt di
             ////_PM("latitude: ");
             ////_PM(global.lat);
             planelat = global.lat;
+           // planelat = -6.9197176;
             ////_PM("longitude: ");
             ////_PM(global.lon);
             planelong = global.lon;  
+            //planelong = 107.5623504;
           //}
           //if(global.alt != 0){
             ////_PM("altitude: ");
             ////_PM(global.alt);
-            planeAlt = global.relative_alt; 
+            planeAlt = global.relative_alt;
+            planeAlt = max(0,planeAlt); 
               _PM("latitude: ");
               _PM(planelat);
               _PM("longitude: ");
               _PM(planelong);
               _PM("altitude: ");
-              _PM(planeAlt); 
+              _PM(planeAlt);  
+            _PM("global.lon");
+            _PM(global.lon);
+            _PM("global.lat: ");
+            _PM(global.lat);
           //}
         }
       default:
+        //_PP(msg.msgid);
         break;
     }
   }
@@ -296,9 +303,9 @@ void Mav_Request_Data()
 {
   mavlink_message_t msg;
   uint8_t buf[MAVLINK_MAX_PACKET_LEN];
-  const int  maxStreams = 1;
-  const uint8_t MAVStreams[maxStreams] = {MAV_DATA_STREAM_ALL};
-  const uint16_t MAVRates[maxStreams] = {0x4};
+  int  maxStreams = 1;
+  uint8_t MAVStreams[maxStreams] = {MAV_DATA_STREAM_ALL};
+  uint16_t MAVRates[maxStreams] = {0x2};
     
   for (int i=0; i < maxStreams; i++) {
     mavlink_msg_request_data_stream_pack(2, 200, &msg, 1, 0, MAVStreams[i], MAVRates[i], 1);
@@ -326,19 +333,24 @@ void t_SensorHandler_callback(){ //harus define currPitch dan currYaw disini
  //Compass
 
   compass.read();
-  int heading = (360 - compass.getAzimuth());//dari GPS(compass) + gyroscope -> idealnya pake compass tapi belum nemu library
+  int heading = (360 - compass.getAzimuth())-90;//dari GPS(compass) + gyroscope -> idealnya pake compass tapi belum nemu library
   currYaw = heading;
-  //_PM("Yaw from compass: ");
-  //_PM(currYaw);
+  _PM("Yaw from compass: ");
+  _PM(currYaw);
 }
 
 void t_ServoYawHandler_callback(){ // dari global var define target pitch dan target yaw dan hitung error dan write ke servo
    ////_PM("TASK CALLING t_ServoYawHandler_callback");
 
-   targetYaw = atan2((planelong - trackerlong),(planelat - trackerlat)) * 180 / 3.14159265359;
+   //targetYaw = atan2((planelong - trackerlong),(planelat - trackerlat)) * 180 / 3.14159265359;
    //targetYaw = 180;
-   //_PM("targetYaw : ");
-   //_PM(targetYaw);
+   //targetYaw = atan2((planelong - trackerlong),(planelat - trackerlat)) * 180 / 3.14159265359;
+   targetYaw = 90;
+   ///double y=sin(planelat-trackerlat)*cos(planelong);
+   //double x=cos(trackerlong)*sin(planelong)-sin(trackerlong)*cos(planelong)*cos(planelat-trackerlat);
+   //targetYaw = atan2(y,x)*180 / 3.14159265359;
+   _PM("targetYaw : ");
+   _PM(targetYaw);
    
   if(targetYaw - currYaw < -180){
     targetYaw += 360;
@@ -348,11 +360,12 @@ void t_ServoYawHandler_callback(){ // dari global var define target pitch dan ta
     targetYaw = targetYaw;
   }
    double errYaw = targetYaw - currYaw;
-   //_PM("errYaw : ");
-   //_PM(errYaw);
+   _PM("errYaw : ");
+   _PM(errYaw);
    double servoOutYaw = map(errYaw*KpYaw, 180, -180, servo_yaw_min, servo_yaw_max); //idealnya pake PID sementara pake P dulu 
-   //_PM("servoOutYaw : ");
-   //_PM(servoOutYaw);
+   _PM("servoOutYaw : ");
+   servoOutYaw = max(min(servoOutYaw, servo_yaw_max),servo_yaw_min);
+   _PM(servoOutYaw);
    servo_yaw.write(servoOutYaw);
 
 }
@@ -369,6 +382,12 @@ void t_ServoPitchHandler_callback(){
    //_PM(dist*konstant);
    
    targetPitch = atan2((planeAlt-trackerAlt),dist*konstant) * 180 / 3.14159265359;
+   
+   
+   //targetPitch = atan2((planeAlt-trackerAlt),dist*konstant) * 180 / 3.14159265359;
+   //double d = 1000*6371*acos(sin(trackerlong)*sin(planelong)+cos(trackerlong)*cos(planelong)*cos(planelat-trackerlat));
+   //targetPitch = atan2(planeAlt*1000-trackerAlt*1000,d);
+   //_PM(d);
    //_PM("targetPitch : ");
    //_PM(targetPitch);
    double errPitch = targetPitch - currPitch;
@@ -376,25 +395,8 @@ void t_ServoPitchHandler_callback(){
    //_PM(errPitch);
    double servoOutPitch = map(errPitch*KpPitch,180 ,-180,servo_pitch_min, servo_pitch_max ); //idealnya pake PID sementara pake P dulu 
    //_PM("servoOutPitch : ");
+   servoOutPitch = max(min(servoOutPitch, servo_pitch_max),servo_pitch_min);
    //_PM(servoOutPitch);
    servo_pitch.write(servoOutPitch);
    
-}
-
-double getDistanceFromLatLonInKm (double lat1,double lon1,double lat2,double lon2) {
-  double R = 6371; // Radius of the earth in km
-  double dLat = deg2rad(abs(lat2-lat1));  // deg2rad below
-  double dLon = deg2rad(abs(lon2-lon1)); 
-  double a = 
-    sin(dLat/2) * sin(dLat/2) +
-    cos(deg2rad(lat1)) * cos(deg2rad(lat2)) * 
-    sin(dLon/2) * sin(dLon/2)
-    ; 
-  double c = 2 * atan2(sqrt(a),sqrt(1-a)); 
-  double d = R * c; // Distance in km
-  return d;
-}
-
-double deg2rad(double deg) {
-  return deg * (3.14159265359/180);
 }

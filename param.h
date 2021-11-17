@@ -12,7 +12,7 @@
 #define PinServoPitch 5
 
 //const
-#define KpYaw 2
+#define KpYaw 3
 #define KdYaw 1
 #define KiYaw 0.5
 
@@ -25,6 +25,8 @@ double   trackerlong; //dari GPS
 double   trackerlat; //dari GPS
 double   planelong; //dari Mavlink
 double   planelat; //dari Mavlink
+
+unsigned long now;
 
 double   trackerAlt = 0; //dari GPS
 double   planeAlt; // dari Mavlink

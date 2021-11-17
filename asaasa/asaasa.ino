@@ -58,6 +58,7 @@ double  servo_pitch_max = 160;
 double  servo_pitch_min = 20;
 
 //GPS
+MPU_6050 mpu;
 
 #define gpsSerial Serial1
 uint8_t read_serial_byte, incomming_message[100], number_used_sats, fix_type;
@@ -67,7 +68,6 @@ int16_t gps_add_counter;
 uint8_t new_line_found;
 Servo servo_yaw;
 Servo servo_pitch;
-MPU_6050 mpu;
 uint32_t tlast_gps;
 
 
@@ -104,11 +104,15 @@ void setup() {
  // INISIALISASI SENSOR  
  Wire.begin();
  compass.init();
-compass.setCalibration(-209, 997, -378, 263, -1, 1519);
+//compass.setCalibration(-209, 997, -378, 263, -1, 1519);
+//compass.setCalibration(-427, 1771, -1137, 1118, -1257, 0);
+
+//compass.setCalibration(-316, 0, -1, 1419, -938, 0);
 
  //compass.setCalibration(-975, 1113, -1220, 850, -455, 7);
  //compass.setCalibration(-1014, 1241, -2131, 961, -1633, 985);
  //compass.setCalibration(-1205, 1356, -1393, 1128, -1311, 0);
+ compass.setCalibration(-802, 2072, -1381, 858, -2162, 1227);
 
  compass.setSmoothing(10,true);
  mpu.boot();
@@ -118,19 +122,29 @@ compass.setCalibration(-209, 997, -378, 263, -1, 1519);
  //PitchServoCalibration();
  //TrackerPos();
  Serial.println("Setup DONE ...");
- servo_yaw.write(150);
+ servo_yaw.write(20);
  //servo_pitch.write(80);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
 compass.read();
-  int heading = (360 - compass.getAzimuth());//dari GPS(compass) + gyroscope -> idealnya pake compass tapi belum nemu library
+  int heading = (360 - compass.getAzimuth()-90);//dari GPS(compass) + gyroscope -> idealnya pake compass tapi belum nemu library
   currYaw = heading;
   _PM("Yaw from compass: ");
   _PM(currYaw);
-
+  
   mpu.update();
+   //mpu.update();
+
+  currPitch = mpu.getPitch()-90; //dari Accelerometer
+  
+// if(heading > 180){
+//  heading = heading - 360;
+// }
+
+  _PM("pitch from MPU: ");
+  _PM(currPitch);
 
 //double  mpuYaw = mpu.getYaw(); 
   //_PM("Yaw from MPU: ");
